@@ -11,7 +11,7 @@ setuptools.setup(
     description="A package for working with BIP75 and BIP70 in a Python environment.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pypa/sampleproject",
+    url="https://github.com/netkicorp/transactid-library-python",
     packages=["transactid"],
     install_requires=["cryptography==2.7", "protobuf==3.9.2"],
     classifiers=[

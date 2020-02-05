@@ -4,7 +4,20 @@ version = "0.1.0a3"
 license = "BSD-3-Clause"
 readme = "README.md"
 description = "A package for working with BIP75 and BIP70 in a Python environment."
+homepage = "https://github.com/netkicorp/transactid-library-python"
+repository = "https://github.com/netkicorp/transactid-library-python"
+keywords = ["transactid", "BIP75", "BIP70"]
 authors = ["Jeremy Kenyon <jeremy@netki.com>"]
+
+classifiers=[
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+
+include = [
+    "LICENSE",
+]
 
 [tool.poetry.dependencies]
 python = "^3.6.5"
