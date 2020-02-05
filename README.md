@@ -13,8 +13,8 @@ in mind when going through this document:
 ## General Usage
 
 When instantiating the class you'll need a private key PEM and optionally a certificate PEM.  Both as
-standard str types.  Certificate will only be needed when creating signed objects.  If you aren't 
-signing or creating objects you won't need that but private key PEM is always required.
+standard str types (we convert to byte string ourselves).  A certificate will only be needed when creating signed objects.  
+If you aren't signing or creating objects you won't need that but private key PEM is always required.
 
     from transactid import TransactID
     transact = TransactID(private_key_pem=private_pem, certificate_pem=cert_pem)
@@ -71,7 +71,7 @@ filled in.
 ## Payment Request
 
 Please refer to the [BIP70][1] documentation for detailed requirements for a PaymentRequest. Please note we are combining
- the PaymentDetails and PaymentRequests objects for easy of use. When it comes to using this library to create 
+ the PaymentDetails and PaymentRequests objects for ease of use. When it comes to using this library to create 
  one you'll need to provide the following:
 
 * time_stamp: datetime
@@ -105,7 +105,7 @@ the signature and parse one:
     from transactid.exceptions import DecodeException
 
     try:
-        transact.verify_payment_request(serialized_invoice_request)
+        transact.verify_payment_request(serialized_payment_request)
     except InvalidSignatureException:
         <let sender know the signature was invalid>
     except DecodeException:
@@ -128,7 +128,7 @@ Please refer to the [BIP70][1] documentation for detailed requirements for a Pay
 library to create one you'll need to provide the following:
 
 * transactions: List[bytes]
-* refund_to: List[(int, bytes)]  # int: amount, bytes: script (see BIP70 details for more information on scripts)
+* refund_to: List[(int, bytes)]  # int: amount, bytes: script (see [BIP70][1] details for more information on scripts)
 * merchant_data: Optional[bytes]
 * memo: Optional[str]
 
@@ -141,7 +141,7 @@ Create an object for sending like so:
         merchant_data=merchant_data,
     )
 
-This will provide you with a serialized binary string that you can then send to someone and let them know you gave 
+This will provide you with a serialized binary string that you can then send to someone and to them know you gave 
 them money.
 
 When you are on the receiving end of one of those binary strings you can do the following to parse one.  
@@ -150,7 +150,7 @@ Please note that Payments aren't signed unlike the Invoice/PaymentRequest:
     from transactid.exceptions import DecodeException
 
     try:
-        transact.verify_payment_request(serialized_payment)
+        transact.verify_payment(serialized_payment)
     except DecodeException:
         <let sendiner know there was a problem with the porotobuf object they sent over>
     else:
@@ -160,7 +160,7 @@ If there are no exceptions then we were able to parse the protobuf object.
 
 To access the data from the Payment just do:
 
-    payment_request = transact.get_verified_payment()
+    payment = transact.get_verified_payment()
 
 And that will return a dictionary with all of the fields of the Payment and the values that were 
 filled in.
@@ -168,7 +168,7 @@ filled in.
 ## PaymentACK
 
 Please refer to the [BIP70][1] documentation for detailed requirements for a PaymentACK. PaymentACKs are a bit different 
-than other things in the library.  Due to the fact that art of the PaymentACK is the Payment object you are 
+than other things in the library.  Due to the fact that part of the PaymentACK is the Payment object you are 
 acknowledging, it's not possible to create an ACK without first verifying a Payment.
 
 * memo: Optional[str]
@@ -181,7 +181,7 @@ This will provide you with a serialized binary string that you can then send to 
 sent you money.
 
 When you are on the receiving end of one of those binary strings you can do the following to parse one.  
-Please note that Payments aren't signed unlike the Invoice/PaymentRequest:
+Please note that PaymentACKs aren't signed unlike the Invoice/PaymentRequest:
 
     from transactid.exceptions import DecodeException
 
