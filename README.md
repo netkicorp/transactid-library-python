@@ -1,6 +1,6 @@
 TransactID Library Python Edition
 
-This library is a wrapper for using [BIP70][1] and [BIP75][2]
+This library is a wrapper for using [BIP70][1] and [BIP75][2].  There is a test server that can be used with this located [here][3].
 
 There are three main method types that you'll use: create_\*, verify_\*, and get_\*.
 
@@ -204,3 +204,4 @@ filled in.
 
 [1]: https://github.com/bitcoin/bips/blob/master/bip-0070.mediawiki
 [2]: https://github.com/bitcoin/bips/blob/master/bip-0075.mediawiki
+[3]: https://github.com/netkicorp/transactid-test-python
