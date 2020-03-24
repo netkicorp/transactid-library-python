@@ -1,5 +1,7 @@
 import base64
 import hashlib
+import json
+import os
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -9,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 from datetime import datetime
 from google.protobuf.message import DecodeError
+from OpenSSL import crypto
 
 from typing import Tuple, Optional, List
 
@@ -61,7 +64,13 @@ class TransactID:
         else:
             self.certificate_pem = None
 
+        self.root_cert_pem_files = None
+
     def _set_keys(self):
+        """
+        Sets the private and public keys for signing and sending objects.
+        :return:
+        """
         try:
             private_key = serialization.load_pem_private_key(
                 str.encode(self.private_key_pem), password=self.private_key_password, backend=default_backend()
@@ -75,6 +84,60 @@ class TransactID:
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
             return private_key, public_key_pem
+
+    def build_certificate_store(self):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        certs_path = os.path.join(dir_path, "certs")
+        pems = [f for f in os.listdir(certs_path) if f.endswith("pem")]
+
+        certs = {}
+        for pem_file in pems:
+            with open(os.path.join(certs_path, pem_file), "r") as f:
+                pem = f.read()
+
+            cert = self._load_certificate(pem)
+            root = cert.subject == cert.issuer
+            if cert.subject not in certs:
+                if root:
+                    certs[cert.subject] = {"root": pem_file}
+                else:
+                    certs[cert.subject] = {"intermediate": pem_file}
+            else:
+                root_available = certs[cert.subject].get("root")
+                intermediate_available = certs[cert.subject].get("intermediate")
+                if root_available and intermediate_available:
+                    raise Exception(f"Too many pems for {cert.subject}")
+                if root_available:
+                    if root:
+                        raise Exception(f"Too many root pems for {cert.subject}")
+                    certs[cert.subject] = {"intermediate": pem_file}
+                else:
+                    if root:
+                        certs[cert.subject] = {"root": pem_file}
+
+        self.root_cert_pem_files = certs
+
+    @staticmethod
+    def _verify_chain_of_trust(cert_pem, trusted_cert_pems):
+
+        certificate = crypto.load_certificate(crypto.FILETYPE_PEM, cert_pem)
+
+        # Create and fill a X509Sore with trusted certs
+        store = crypto.X509Store()
+        for trusted_cert_pem in trusted_cert_pems:
+            trusted_cert = crypto.load_certificate(crypto.FILETYPE_PEM, trusted_cert_pem)
+            store.add_cert(trusted_cert)
+
+        # Create a X590StoreContext with the cert and trusted certs
+        # and verify the the chain of trust
+        store_ctx = crypto.X509StoreContext(store, certificate)
+        # Returns None if certificate can be validated
+        result = store_ctx.verify_certificate()
+
+        if result is None:
+            return True
+        else:
+            return False
 
     @staticmethod
     def _load_certificate(cert_pem: str):

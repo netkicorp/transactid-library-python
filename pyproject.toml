@@ -21,9 +21,10 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.6.5"
-cryptography = "2.7"
+cryptography = "2.8"
 protobuf = "3.9.2"
 certvalidator = "^0.11.1"
+pyopenssl = "^19.1.0"
 
 [tool.poetry.dev-dependencies]
 
