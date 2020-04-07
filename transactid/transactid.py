@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import json
 import os
 
 from cryptography import x509
@@ -12,12 +11,15 @@ from cryptography.exceptions import InvalidSignature
 from datetime import datetime
 from google.protobuf.message import DecodeError
 from OpenSSL import crypto
+from OpenSSL.crypto import X509StoreContextError
 
 from typing import Tuple, Optional, List
 
 from transactid import paymentrequest_pb2
 from transactid.exceptions import InvalidSignatureException
 from transactid.exceptions import DecodeException
+from transactid.exceptions import MissingRootCertificateException
+from transactid.exceptions import InvalidRootCertificateException
 
 Output = Optional[List[Tuple[int, bytes]]]
 
@@ -58,6 +60,8 @@ class TransactID:
         self.private_key_password = private_key_password
         self.private_key, self.public_key_pem = self._set_keys()
 
+        self.account_owner = None
+
         if certificate_pem is not None:
             self._load_certificate(certificate_pem)
             self.certificate_pem = str.encode(certificate_pem)
@@ -65,6 +69,9 @@ class TransactID:
             self.certificate_pem = None
 
         self.root_cert_pem_files = None
+
+    def set_account_owner(self, cert_private_key_data, primary_for_transaction=True):
+
 
     def _set_keys(self):
         """
@@ -85,7 +92,7 @@ class TransactID:
             )
             return private_key, public_key_pem
 
-    def build_certificate_store(self):
+    def _build_certificate_store(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         certs_path = os.path.join(dir_path, "certs")
         pems = [f for f in os.listdir(certs_path) if f.endswith("pem")]
@@ -97,23 +104,25 @@ class TransactID:
 
             cert = self._load_certificate(pem)
             root = cert.subject == cert.issuer
-            if cert.subject not in certs:
+            if cert.issuer not in certs:
                 if root:
-                    certs[cert.subject] = {"root": pem_file}
+                    certs[cert.issuer] = {"root": pem_file}
                 else:
-                    certs[cert.subject] = {"intermediate": pem_file}
+                    certs[cert.issuer] = {"intermediate": pem_file}
             else:
-                root_available = certs[cert.subject].get("root")
-                intermediate_available = certs[cert.subject].get("intermediate")
+                root_available = certs[cert.issuer].get("root")
+                intermediate_available = certs[cert.issuer].get("intermediate")
                 if root_available and intermediate_available:
-                    raise Exception(f"Too many pems for {cert.subject}")
+                    raise Exception(f"Too many pems for {cert.issuer}")
                 if root_available:
                     if root:
-                        raise Exception(f"Too many root pems for {cert.subject}")
-                    certs[cert.subject] = {"intermediate": pem_file}
+                        raise Exception(f"Too many root pems for {cert.issuer}")
+                    certs[cert.issuer]["intermediate"] = pem_file
                 else:
                     if root:
-                        certs[cert.subject] = {"root": pem_file}
+                        certs[cert.issuer]["root"] = pem_file
+                    else:
+                        certs[cert.issuer]["intermediate"] = pem_file
 
         self.root_cert_pem_files = certs
 
@@ -132,7 +141,10 @@ class TransactID:
         # and verify the the chain of trust
         store_ctx = crypto.X509StoreContext(store, certificate)
         # Returns None if certificate can be validated
-        result = store_ctx.verify_certificate()
+        try:
+            result = store_ctx.verify_certificate()
+        except X509StoreContextError:
+            result = False
 
         if result is None:
             return True
@@ -157,7 +169,6 @@ class TransactID:
 
         invoice_request = paymentrequest_pb2.InvoiceRequest()
         invoice_request.signature = b""
-        invoice_request.sender_public_key = self.public_key_pem
         invoice_request.pki_type = pki_type
 
         if amount:
@@ -289,6 +300,20 @@ class TransactID:
             cert = x509.load_pem_x509_certificate(raw_cert, default_backend())
             public_key = cert.public_key()
 
+            self._build_certificate_store()
+
+            root_certs = self.root_cert_pem_files.get(cert.issuer)
+            if not root_certs:
+                raise MissingRootCertificateException(
+                    f"Unable to find root certificate matching issuer: {cert.issuer}"
+                )
+
+            root_pems = [v for k, v in root_certs.items()]
+            valid_root = self._verify_chain_of_trust(raw_cert, root_pems)
+
+            if not valid_root:
+                raise InvalidRootCertificateException("Certificate chain of provided certificate is invalid.")
+
             try:
                 public_key.verify(
                     signature,
@@ -318,6 +343,20 @@ class TransactID:
 
             cert = x509.load_pem_x509_certificate(raw_cert, default_backend())
             public_key = cert.public_key()
+
+            self._build_certificate_store()
+
+            root_certs = self.root_cert_pem_files.get(cert.issuer)
+            if not root_certs:
+                raise MissingRootCertificateException(
+                    f"Unable to find root certificate matching issuer: {cert.issuer}"
+                )
+
+            root_pems = [v for k, v in root_certs.items()]
+            valid_root = self._verify_chain_of_trust(raw_cert, root_pems)
+
+            if not valid_root:
+                raise InvalidRootCertificateException("Certificate chain of provided certificate is invalid.")
 
             try:
                 public_key.verify(

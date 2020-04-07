@@ -12,3 +12,12 @@ class InvalidSignatureException(InvalidSignature):
     """Custom exception for invalid signature exceptions."""
     pass
 
+
+class MissingRootCertificateException(InvalidSignature):
+    """Custom exception for missing root certificate exceptions."""
+    pass
+
+
+class InvalidRootCertificateException(InvalidSignature):
+    """Custom exception for invalid root certificate exceptions."""
+    pass
